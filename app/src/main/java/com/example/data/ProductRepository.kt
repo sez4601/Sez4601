@@ -2,31 +2,22 @@ package com.example.data
 
 import kotlinx.coroutines.flow.Flow
 
-class ProductRepository(private val productDao: ProductDao) {
-    val allProducts: Flow<List<ProductEntity>> = productDao.getAllProducts()
+class ProductRepository(private val dao: ProductDao) {
+    val allProductsSortedByExpiry: Flow<List<ProductEntity>> = dao.getAllProductsSortedByExpiry()
+    val allProductsSortedByName: Flow<List<ProductEntity>> = dao.getAllProductsSortedByName()
+    val allProductsSortedByNewest: Flow<List<ProductEntity>> = dao.getAllProductsSortedByNewest()
 
-    fun searchProducts(query: String): Flow<List<ProductEntity>> {
-        return if (query.isBlank()) {
-            productDao.getAllProducts()
-        } else {
-            productDao.searchProducts(query)
-        }
-    }
+    fun searchProducts(query: String): Flow<List<ProductEntity>> = dao.searchProducts(query)
+    fun getProductsByCategory(category: String): Flow<List<ProductEntity>> = dao.getProductsByCategory(category)
 
-    fun getProductsByCategory(category: String): Flow<List<ProductEntity>> {
-        return if (category == "Tümü" || category.isBlank()) {
-            productDao.getAllProducts()
-        } else {
-            productDao.getProductsByCategory(category)
-        }
-    }
+    suspend fun getProductByBarcode(barcode: String): ProductEntity? = dao.getProductByBarcode(barcode)
+    suspend fun getProductById(id: Long): ProductEntity? = dao.getProductById(id)
+    suspend fun getAllProductsList(): List<ProductEntity> = dao.getAllProductsList()
 
-    suspend fun getProductByBarcode(barcode: String): ProductEntity? = productDao.getProductByBarcode(barcode)
-    suspend fun getProductByShortCode(shortCode: String): ProductEntity? = productDao.getProductByShortCode(shortCode)
-
-    suspend fun insertProduct(product: ProductEntity): Long = productDao.insertProduct(product)
-    suspend fun updateProduct(product: ProductEntity) = productDao.updateProduct(product)
-    suspend fun deleteProduct(product: ProductEntity) = productDao.deleteProduct(product)
-    suspend fun updateStock(id: Int, newQuantity: Int) = productDao.updateStock(id, newQuantity)
-    suspend fun getCount(): Int = productDao.getCount()
+    suspend fun insertProduct(product: ProductEntity): Long = dao.insertProduct(product)
+    suspend fun insertAll(products: List<ProductEntity>) = dao.insertAll(products)
+    suspend fun updateProduct(product: ProductEntity) = dao.updateProduct(product)
+    suspend fun deleteProduct(product: ProductEntity) = dao.deleteProduct(product)
+    suspend fun deleteAll() = dao.deleteAll()
+    suspend fun getCount(): Int = dao.getCount()
 }

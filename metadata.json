@@ -1,6 +1,6 @@
 {
-  "name": "Stok & Ürün Yönetimi",
-  "description": "Barkod taramalı, kategorili ve fotoğraflı modern stok ve ürün yönetimi uygulaması.",
+  "name": "SKT Takip",
+  "description": "Son Kullanma Tarihi Kontrol, barkod okuma ve ürün stok takip uygulaması.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

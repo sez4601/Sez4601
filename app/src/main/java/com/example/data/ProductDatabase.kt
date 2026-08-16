@@ -18,8 +18,10 @@ abstract class ProductDatabase : RoomDatabase() {
                 val instance = Room.databaseBuilder(
                     context.applicationContext,
                     ProductDatabase::class.java,
-                    "product_inventory_db"
-                ).fallbackToDestructiveMigration().build()
+                    "skt_takip_database"
+                )
+                    .fallbackToDestructiveMigration()
+                    .build()
                 INSTANCE = instance
                 instance
             }
