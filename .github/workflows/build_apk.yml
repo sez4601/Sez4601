@@ -2,8 +2,11 @@ name: Build SKT Takip APK
 
 on:
   push:
-    branches: [ "main", "ana", "**" ]
+    branches: [ "main", "master", "ana", "**" ]
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   build:
@@ -18,23 +21,64 @@ jobs:
       with:
         java-version: '17'
         distribution: 'temurin'
+        cache: 'gradle'
+
+    - name: Prepare Keystore and Environment Files
+      run: |
+        if [ -f "debug.keystore.base64" ]; then
+          echo "Restoring debug.keystore from base64..."
+          base64 -d debug.keystore.base64 > debug.keystore
+        fi
+        if [ ! -f ".env" ] && [ -f ".env.example" ]; then
+          echo "Creating .env from .env.example..."
+          cp .env.example .env
+        elif [ ! -f ".env" ]; then
+          touch .env
+        fi
 
     - name: Setup Gradle
       uses: gradle/actions/setup-gradle@v3
       with:
         gradle-version: '8.13'
 
-    - name: Generate Gradle Wrapper
-      run: gradle wrapper --gradle-version 8.13
+    - name: Generate and Configure Gradle Wrapper
+      run: |
+        gradle wrapper --gradle-version 8.13
+        chmod +x gradlew
 
-    - name: Grant Execute Permission to Gradlew
-      run: chmod +x gradlew
+    - name: Accept Android SDK Licenses
+      run: |
+        yes | ${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager --licenses || true
 
     - name: Build Debug APK
       run: ./gradlew assembleDebug --no-daemon --stacktrace
 
-    - name: Upload APK
+    - name: Rename APK for Easy Identification
+      run: |
+        mkdir -p release_apk
+        find app/build/outputs/apk/debug/ -name "*.apk" -exec cp {} release_apk/SKT_Takip_App.apk \;
+
+    - name: Upload APK Artifact
       uses: actions/upload-artifact@v4
       with:
         name: SKT-Takip-APK
-        path: app/build/outputs/apk/debug/*.apk
+        path: release_apk/*.apk
+        retention-days: 30
+
+    - name: Create or Update GitHub Release with APK
+      uses: softprops/action-gh-release@v2
+      if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || github.event_name == 'workflow_dispatch'
+      with:
+        tag_name: latest-build
+        name: "SKT Takip Son APK Sürümü"
+        body: |
+          🚀 **SKT & Ürün Takip Uygulaması Güncel APK Dosyası**
+          
+          - Otomatik derlenen en güncel APK dosyası eklendi.
+          - Aşağıdaki `SKT_Takip_App.apk` bağlantısına tıklayarak doğrudan telefonunuza indirip yükleyebilirsiniz.
+        draft: false
+        prerelease: false
+        files: release_apk/SKT_Takip_App.apk
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
