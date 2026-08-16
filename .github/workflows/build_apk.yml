@@ -35,13 +35,9 @@ jobs:
           touch .env
         fi
 
-    - name: Set up Android SDK
-      uses: android-actions/setup-android@v3
-
-    - name: Install Android Platform 35 and Build Tools
+    - name: Accept Android SDK Licenses
       run: |
-        yes | sdkmanager --licenses || true
-        sdkmanager "platforms;android-35" "build-tools;35.0.0"
+        yes | ${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager --licenses || true
 
     - name: Setup Gradle
       uses: gradle/actions/setup-gradle@v4
@@ -49,7 +45,7 @@ jobs:
         gradle-version: '8.13'
 
     - name: Build Debug APK
-      run: gradle :app:assembleDebug --no-daemon --stacktrace
+      run: gradle :app:assembleDebug --no-daemon --no-configuration-cache --stacktrace
 
     - name: Rename APK for Easy Identification
       run: |
