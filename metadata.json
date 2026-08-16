@@ -1,0 +1,6 @@
+{
+  "name": "Stok & Ürün Yönetimi",
+  "description": "Barkod taramalı, kategorili ve fotoğraflı modern stok ve ürün yönetimi uygulaması.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
