@@ -35,9 +35,11 @@ jobs:
           touch .env
         fi
 
-    - name: Accept Android SDK Licenses
-      run: |
-        yes | ${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager --licenses || true
+    - name: Setup Android SDK
+      uses: android-actions/setup-android@v3
+
+    - name: Accept Licenses
+      run: yes | sdkmanager --licenses || true
 
     - name: Setup Gradle
       uses: gradle/actions/setup-gradle@v4
@@ -45,7 +47,7 @@ jobs:
         gradle-version: '8.13'
 
     - name: Build Debug APK
-      run: gradle :app:assembleDebug --no-daemon --no-configuration-cache --stacktrace
+      run: ./gradlew assembleDebug --no-daemon --stacktrace || gradle :app:assembleDebug --no-daemon --stacktrace
 
     - name: Rename APK for Easy Identification
       run: |
