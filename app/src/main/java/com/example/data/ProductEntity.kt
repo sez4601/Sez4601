@@ -55,6 +55,27 @@ data class ProductEntity(
             expiryDate
         }
     }
+
+    // Formatlanmış Eklenme Tarihi (dd.MM.yyyy)
+    fun getFormattedAddedDate(): String {
+        return try {
+            val sdf = java.text.SimpleDateFormat("dd.MM.yyyy", java.util.Locale("tr", "TR"))
+            sdf.format(java.util.Date(addedDate))
+        } catch (e: Exception) {
+            "-"
+        }
+    }
+
+    // Kalan Gün Metni (örn: "3 gün kaldı", "Bugün son gün!", "2 gün geçti")
+    fun getRemainingDaysText(): String {
+        val days = getRemainingDays()
+        return when {
+            days < 0 -> "${-days} gün geçti"
+            days == 0L -> "Bugün son gün!"
+            days == 1L -> "1 gün kaldı"
+            else -> "$days gün kaldı"
+        }
+    }
 }
 
 enum class ProductStatus(val labelTr: String) {

@@ -43,7 +43,10 @@ data class AddProductFormState(
     val autoPopulatedSource: String? = null,
     val autoPopulatedBrand: String? = null,
     val isEditMode: Boolean = false,
-    val editingProductId: Long = 0L
+    val editingProductId: Long = 0L,
+    val ocrDetectedLines: List<String> = emptyList(),
+    val ocrFullText: String = "",
+    val isOcrProcessing: Boolean = false
 )
 
 class ProductViewModel(application: Application) : AndroidViewModel(application) {
@@ -53,6 +56,7 @@ class ProductViewModel(application: Application) : AndroidViewModel(application)
     val searchQuery = MutableStateFlow("")
     val selectedCategory = MutableStateFlow("Tümü")
     val selectedSortType = MutableStateFlow(SortType.EXPIRY)
+    val selectedStatusFilter = MutableStateFlow<ProductStatus?>(null)
 
     // Ayarlar State
     val alertDaysThreshold = MutableStateFlow(7) // Varsayılan 7 gün önceden uyarı
@@ -70,12 +74,21 @@ class ProductViewModel(application: Application) : AndroidViewModel(application)
     private val _userMessage = MutableSharedFlow<String>()
     val userMessage: SharedFlow<String> = _userMessage.asSharedFlow()
 
+    // Veritabanındaki tüm ürünler (filtresiz, sayaçlar ve durum kartları için)
+    val allProductsList: StateFlow<List<ProductEntity>>
+    // Filtrelenmiş ve sıralanmış liste (ana ekranda gösterilen)
     val products: StateFlow<List<ProductEntity>>
 
     init {
         val dao = ProductDatabase.getDatabase(application).productDao()
         repository = ProductRepository(dao)
         barcodeLookupService = com.example.data.BarcodeLookupService(repository)
+
+        allProductsList = repository.allProductsSortedByExpiry.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyList()
+        )
 
         val flowSorted = selectedSortType.flatMapLatest { sort ->
             when (sort) {
@@ -88,11 +101,15 @@ class ProductViewModel(application: Application) : AndroidViewModel(application)
         products = combine(
             flowSorted,
             searchQuery,
-            selectedCategory
-        ) { list, query, category ->
+            selectedCategory,
+            selectedStatusFilter
+        ) { list, query, category, statusFilter ->
             var filtered = list
             if (category != "Tümü") {
                 filtered = filtered.filter { it.category == category }
+            }
+            if (statusFilter != null) {
+                filtered = filtered.filter { it.getStatus() == statusFilter }
             }
             if (query.isNotBlank()) {
                 val q = query.trim().lowercase()
@@ -189,10 +206,14 @@ class ProductViewModel(application: Application) : AndroidViewModel(application)
         }
 
         viewModelScope.launch {
+            val cleanBarcode = barcode?.let {
+                com.example.util.BarcodeHelper.extract13DigitBarcode(it) ?: com.example.util.BarcodeHelper.cleanDigitsOnly(it, 13)
+            }?.ifBlank { null }
+
             val entity = ProductEntity(
                 id = id,
                 name = name.trim(),
-                barcode = barcode?.trim()?.ifBlank { null },
+                barcode = cleanBarcode,
                 expiryDate = expiryDate.trim(),
                 productionDate = productionDate?.trim()?.ifBlank { null },
                 category = category,
@@ -215,6 +236,27 @@ class ProductViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
+    fun setSearchQuery(query: String) {
+        searchQuery.value = query
+    }
+
+    fun setSortType(sortType: SortType) {
+        selectedSortType.value = sortType
+    }
+
+    fun toggleStatusFilter(status: ProductStatus) {
+        if (selectedStatusFilter.value == status) {
+            selectedStatusFilter.value = null
+        } else {
+            selectedStatusFilter.value = status
+        }
+    }
+
+    fun clearFilters() {
+        searchQuery.value = ""
+        selectedStatusFilter.value = null
+    }
+
     fun updateProductName(name: String) {
         _addProductFormState.update { it.copy(name = name) }
     }
@@ -224,7 +266,9 @@ class ProductViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun updateProductBarcode(barcode: String) {
-        _addProductFormState.update { it.copy(barcode = barcode) }
+        val extracted = com.example.util.BarcodeHelper.extract13DigitBarcode(barcode)
+        val sanitized = extracted ?: com.example.util.BarcodeHelper.cleanDigitsOnly(barcode, 13)
+        _addProductFormState.update { it.copy(barcode = sanitized) }
     }
 
     fun updateProductExpiryDate(expiryDate: String) {
@@ -249,6 +293,65 @@ class ProductViewModel(application: Application) : AndroidViewModel(application)
 
     fun updateProductLabelImageUri(uri: String?) {
         _addProductFormState.update { it.copy(labelImageUri = uri) }
+    }
+
+    fun processImageWithOcr(context: Context, uri: android.net.Uri, autoFillName: Boolean = true) {
+        viewModelScope.launch {
+            _addProductFormState.update { it.copy(isOcrProcessing = true) }
+            try {
+                val ocrResult = com.example.util.TextRecognitionHelper.recognizeText(context, uri)
+                _addProductFormState.update { current ->
+                    // Yalnızca autoFillName true ise VE mevcut isim boşsa otomatik doldur
+                    val shouldAutoFill = autoFillName && current.name.isBlank()
+                    val newName = if (shouldAutoFill) {
+                        ocrResult.bestNameCandidate ?: current.name
+                    } else {
+                        current.name
+                    }
+                    current.copy(
+                        name = newName,
+                        ocrDetectedLines = ocrResult.textLines,
+                        ocrFullText = ocrResult.fullText,
+                        isOcrProcessing = false,
+                        isAutoPopulated = if (shouldAutoFill && ocrResult.bestNameCandidate != null) true else current.isAutoPopulated,
+                        autoPopulatedSource = if (shouldAutoFill && ocrResult.bestNameCandidate != null) "Metin Tanıma (OCR)" else current.autoPopulatedSource
+                    )
+                }
+                if (ocrResult.bestNameCandidate != null) {
+                    _userMessage.emit("✨ Ürün ismi algılandı: ${ocrResult.bestNameCandidate}")
+                } else if (ocrResult.textLines.isNotEmpty()) {
+                    _userMessage.emit("ℹ️ ${ocrResult.textLines.size} metin satırı okundu. Aşağıdan seçim yapabilirsiniz.")
+                } else {
+                    _userMessage.emit("ℹ️ Fotoğrafta belirgin metin okunamadı, manuel yazabilirsiniz.")
+                }
+            } catch (e: Exception) {
+                _addProductFormState.update { it.copy(isOcrProcessing = false) }
+                _userMessage.emit("⚠️ Metin okuma hatası: ${e.message}")
+            }
+        }
+    }
+
+    fun selectOcrTextAsName(selectedText: String) {
+        _addProductFormState.update { it.copy(name = selectedText.trim()) }
+    }
+
+    fun appendOcrTextToName(textToAppend: String) {
+        _addProductFormState.update { current ->
+            val combined = if (current.name.isBlank()) textToAppend.trim() else "${current.name} ${textToAppend.trim()}"
+            current.copy(name = combined)
+        }
+    }
+
+    fun clearOcrResults() {
+        _addProductFormState.update { it.copy(ocrDetectedLines = emptyList(), ocrFullText = "") }
+    }
+
+    fun toggleAlertSound() {
+        alertSoundEnabled.value = !alertSoundEnabled.value
+    }
+
+    fun toggleAlertVibration() {
+        alertVibrationEnabled.value = !alertVibrationEnabled.value
     }
 
     fun resetAddProductForm() {
@@ -313,7 +416,8 @@ class ProductViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun fetchProductInfoByBarcode(barcode: String, onResult: ((com.example.data.BarcodeLookupResult?) -> Unit)? = null) {
-        val cleanBarcode = barcode.trim()
+        val extracted = com.example.util.BarcodeHelper.extract13DigitBarcode(barcode)
+        val cleanBarcode = extracted ?: com.example.util.BarcodeHelper.cleanDigitsOnly(barcode, 13)
         if (cleanBarcode.isBlank()) return
 
         // Form state'deki barkod alanını güncelle

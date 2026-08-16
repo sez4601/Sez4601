@@ -49,9 +49,7 @@ jobs:
         gradle-version: '8.13'
 
     - name: Build Debug APK
-      run: |
-        chmod +x gradlew || true
-        ./gradlew assembleDebug --no-daemon --stacktrace -Dorg.gradle.configuration-cache=false || gradle assembleDebug --no-daemon --stacktrace -Dorg.gradle.configuration-cache=false
+      run: gradle assembleDebug --no-daemon --stacktrace -Dorg.gradle.configuration-cache=false
 
     - name: Rename APK for Easy Identification
       run: |

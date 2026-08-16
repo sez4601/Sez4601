@@ -263,7 +263,8 @@ fun AddEditProductScreen(
                                                 viewModel.fetchProductInfoByBarcode(newBarcode)
                                             }
                                         },
-                                        label = { Text("Barkod Numarası (EAN-13 / EAN-8)") },
+                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                        label = { Text("13 Haneli Ürün Barkodu") },
                                         placeholder = { Text("Örn: 8690637011403") },
                                         modifier = Modifier.fillMaxWidth(),
                                         singleLine = true,
