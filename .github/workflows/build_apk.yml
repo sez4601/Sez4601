@@ -21,7 +21,6 @@ jobs:
       with:
         java-version: '17'
         distribution: 'temurin'
-        cache: 'gradle'
 
     - name: Prepare Keystore and Environment Files
       run: |
@@ -37,21 +36,12 @@ jobs:
         fi
 
     - name: Setup Gradle
-      uses: gradle/actions/setup-gradle@v3
+      uses: gradle/actions/setup-gradle@v4
       with:
         gradle-version: '8.13'
 
-    - name: Generate and Configure Gradle Wrapper
-      run: |
-        gradle wrapper --gradle-version 8.13
-        chmod +x gradlew
-
-    - name: Accept Android SDK Licenses
-      run: |
-        yes | ${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager --licenses || true
-
     - name: Build Debug APK
-      run: ./gradlew assembleDebug --no-daemon --stacktrace
+      run: gradle assembleDebug --no-daemon --stacktrace
 
     - name: Rename APK for Easy Identification
       run: |
